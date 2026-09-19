@@ -24,6 +24,7 @@ import java.util.function.Consumer;
 
 import pojlib.account.MinecraftAccount;
 import pojlib.install.FabricMeta;
+import pojlib.install.ForgeMeta;
 import pojlib.install.Installer;
 import pojlib.install.MinecraftMeta;
 import pojlib.install.QuiltMeta;
@@ -134,6 +135,7 @@ public class InstanceHandler {
         instance.versionName = minecraftVersion;
         instance.gameDir = Constants.USER_HOME + "/instances/" + instanceName.toLowerCase(Locale.ROOT).replaceAll(" ", "_");
         instance.defaultMods = useDefaultMods;
+        instance.modLoader = modLoader;
 
         File gameDirFile = new File(instance.gameDir);
         if(!gameDirFile.exists()) {
@@ -154,15 +156,31 @@ public class InstanceHandler {
                 modLoaderVersionInfo = QuiltMeta.getVersionInfo(quiltVersion, minecraftVersion);
                 break;
             }
-            case "Forge":
-            case "NeoForge": {
+            case "Forge": {
+                // Lily, forge-support WIP: resolve the Forge build and read its installer profile.
+                ForgeMeta.ForgeVersion forgeVersion = ForgeMeta.getForgeVersion(minecraftVersion);
+                if (forgeVersion == null) {
+                    throw new RuntimeException("No Forge build available for " + minecraftVersion);
+                }
+                modLoaderVersionInfo = ForgeMeta.getVersionInfo(forgeVersion, gameDir);
+                if (modLoaderVersionInfo == null) {
+                    throw new RuntimeException("Could not read Forge installer profile for " + minecraftVersion);
+                }
                 break;
+            }
+            case "NeoForge": {
+                // TODO(lily): NeoForge has no 1.20.1 build and needs its own meta
+                // (https://maven.neoforged.net) plus the same processor work as Forge. See FORGE-PORT.md.
+                throw new RuntimeException("NeoForge support is not implemented yet");
             }
         }
 
         VersionInfo minecraftVersionInfo = MinecraftMeta.getVersionInfo(minecraftVersion);
         instance.versionType = minecraftVersionInfo.type;
         instance.mainClass = modLoaderVersionInfo.mainClass;
+        if ("Forge".equals(modLoader) || "NeoForge".equals(modLoader)) {
+            instance.jvmArgs = ForgeMeta.extractJvmArgs(modLoaderVersionInfo);
+        }
 
         // Install minecraft
         VersionInfo finalModLoaderVersionInfo = modLoaderVersionInfo;

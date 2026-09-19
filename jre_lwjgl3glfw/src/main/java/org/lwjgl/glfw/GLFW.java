@@ -563,6 +563,14 @@ public class GLFW
             // This will never happen since this is accessing itself
         }
 
+        // Lily (launcher build test-5): plant the bundled starter world into this instance's
+        // saves/ once, before the world list is read. Never throws.
+        try {
+            org.lily.WorldSeeder.run();
+        } catch (Throwable t) {
+            t.printStackTrace();
+        }
+
 		/*
 		 mGLFWMonitorCallback = new GLFWMonitorCallback(){
 

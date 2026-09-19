@@ -75,6 +75,8 @@ public class MinecraftInstances {
         public String assetIndex;
         public String assetsDir;
         public String mainClass;
+        public String modLoader;
+        public List<String> jvmArgs;
         public String extraNatives;
         public ProjectInfo[] extProjects;
         public boolean defaultMods;
@@ -85,6 +87,15 @@ public class MinecraftInstances {
                     "--accessToken", account.accessToken, "--userType", account.userType, "--versionType", "release"};
 
             List<String> allArgs = new ArrayList<>();
+            if (jvmArgs != null) {
+                for (String a : jvmArgs) {
+                    allArgs.add(a
+                            .replace("${library_directory}", gameDir + "/libraries")
+                            .replace("${classpath_separator}", File.pathSeparator)
+                            .replace("${classpath}", classpath)
+                            .replace("${version_name}", versionName));
+                }
+            }
             allArgs.add("-cp");
             allArgs.add(classpath);
             allArgs.add(mainClass);
