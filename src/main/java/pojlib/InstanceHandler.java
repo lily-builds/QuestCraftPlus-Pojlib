@@ -143,6 +143,7 @@ public class InstanceHandler {
         }
 
         VersionInfo modLoaderVersionInfo = null;
+        ForgeMeta.ForgeVersion forgeVersion = null;
         switch (modLoader) {
             case "Fabric": {
                 FabricMeta.FabricVersion fabricVersion = FabricMeta.getLatestVersion();
@@ -158,7 +159,7 @@ public class InstanceHandler {
             }
             case "Forge": {
                 // Lily, forge-support WIP: resolve the Forge build and read its installer profile.
-                ForgeMeta.ForgeVersion forgeVersion = ForgeMeta.getForgeVersion(minecraftVersion);
+                forgeVersion = ForgeMeta.getForgeVersion(minecraftVersion);
                 if (forgeVersion == null) {
                     throw new RuntimeException("No Forge build available for " + minecraftVersion);
                 }
@@ -184,6 +185,7 @@ public class InstanceHandler {
 
         // Install minecraft
         VersionInfo finalModLoaderVersionInfo = modLoaderVersionInfo;
+        ForgeMeta.ForgeVersion finalForgeVersion = forgeVersion;
 
         if(instances.instances == null) {
             instances.instances = new MinecraftInstances.Instance[0];
@@ -204,6 +206,16 @@ public class InstanceHandler {
 
                 CompletableFuture<Void> installFuture = CompletableFuture.allOf(clientClasspath, minecraftClasspath, modLoaderClasspath, assetsFuture);
                 installFuture.get();
+
+                // Lily, forge-support WIP: Forge's processors patch the vanilla client jar
+                // into the forge client. They need client.jar + libraries in place first.
+                if ("Forge".equals(modLoader) && finalForgeVersion != null) {
+                    ForgeMeta.InstallProfile profile = ForgeMeta.getInstallProfile(finalForgeVersion, gameDir);
+                    if (profile == null) {
+                        throw new RuntimeException("Forge install_profile.json missing for " + finalForgeVersion.id());
+                    }
+                    ForgeMeta.runProcessors(profile, finalForgeVersion, gameDir, minecraftVersionInfo.id);
+                }
 
                 instance.classpath = clientClasspath.get() + File.pathSeparator + minecraftClasspath.get() + File.pathSeparator + modLoaderClasspath.get() + File.pathSeparator + lwjgl;
 

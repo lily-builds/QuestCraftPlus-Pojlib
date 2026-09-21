@@ -3,8 +3,9 @@
 Creator asked: "add full forge support for the mods button and 1.20.1 and make sure when I
 pick 1.20.1 the defaults mods are forge mods so it can work."
 
-This branch is the first cut. It is NOT finished and a Forge instance will not boot yet.
-Ground truth below, from the actual sources.
+This branch is a work in progress. It is NOT finished and a Forge instance is NOT device-tested.
+Ground truth below, from the actual sources. Update 2026-09-21: the processor path (blocker 1)
+now has a first implementation in the tree; see "Processor implementation (2026-09-21)" below.
 
 ## What was missing (verified in source)
 - `pojlib/InstanceHandler.create()`: the loader switch had `case "Forge": case "NeoForge": break;`
@@ -28,11 +29,13 @@ Ground truth below, from the actual sources.
 - Wrapper: mod search uses the instance's loader facet; default-mods toggle allowed for Forge;
   instance label shows the real loader.
 
-## The two hard blockers that remain
+## The two hard blockers
 1. **Forge install processors.** Forge's installer does not just download libraries; it runs
    processors (installertools, ForgeAutoRenamingTool, SpecialSource, binarypatcher, ...) that
-   produce the patched client artifacts. None of that is implemented. The clean route is to run
-   the installer jar itself (`--installClient <gameDir>`) with the bundled JRE before launch.
+   produce the patched client artifacts. A first in-process implementation is now in the tree
+   (see below), but it has NOT been compiled against the Android SDK or run on a device, so it
+   is unproven. Fallback if it misbehaves: run the installer jar itself
+   (`--installClient <gameDir>`) with the bundled JRE before launch.
 2. **A Forge + Android/OpenXR Vivecraft build does not exist.** QuestCraftPlusPlus/VivecraftMod
    only publishes Fabric Android builds for 1.20.1. The official Vivecraft 1.20.1 release has a
    `-forge` jar, but it is the desktop build (no Android/OpenXR input path), so VR controllers
@@ -49,6 +52,16 @@ Ground truth below, from the actual sources.
   ModernFix (Forge) `https://cdn.modrinth.com/data/nmDcB62a/versions/jAZ7Ge3d/modernfix-forge-5.27.83%2Bmc1.20.1.jar`
   (Sodium is Fabric-only; on Forge the equivalent is Embeddium.)
 - NeoForge has no 1.20.1 build (starts at 1.20.2).
+
+## Processor implementation (2026-09-21, unverified)
+`ForgeMeta` now reads `install_profile.json` from the installer jar, downloads the processor
+jars + their classpaths from the Forge maven, and runs each client-side processor in-process
+via `URLClassLoader` (no subprocess, because on Android the launcher already lives in the JVM).
+`resolveArg` handles Forge's `{VARIABLE}` and `[group:artifact:version]` argument forms.
+`InstanceHandler.create()` calls `runProcessors(...)` after libraries + client jar are in place,
+and throws if the install profile is missing.
+Status: parses clean under javac (only missing-dependency errors, no syntax errors) but NOT
+compiled against the Android SDK and NOT run on a device. Nothing here is proven yet.
 
 ## Next steps (in order)
 1. Run the Forge installer headlessly to complete the install (blocker 1).
