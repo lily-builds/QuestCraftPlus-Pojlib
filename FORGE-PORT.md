@@ -53,18 +53,30 @@ now has a first implementation in the tree; see "Processor implementation (2026-
   (Sodium is Fabric-only; on Forge the equivalent is Embeddium.)
 - NeoForge has no 1.20.1 build (starts at 1.20.2).
 
-## Processor implementation (2026-09-21, unverified)
-`ForgeMeta` now reads `install_profile.json` from the installer jar, downloads the processor
-jars + their classpaths from the Forge maven, and runs each client-side processor in-process
-via `URLClassLoader` (no subprocess, because on Android the launcher already lives in the JVM).
-`resolveArg` handles Forge's `{VARIABLE}` and `[group:artifact:version]` argument forms.
-`InstanceHandler.create()` calls `runProcessors(...)` after libraries + client jar are in place,
-and throws if the install profile is missing.
-Status: parses clean under javac (only missing-dependency errors, no syntax errors) but NOT
-compiled against the Android SDK and NOT run on a device. Nothing here is proven yet.
+## Peer audit (2026-09-21, lilly-71) → decision: run the installer, don't re-implement it
+lilly-71 read the in-process processor code against the real 1.20.1-47.2.0 installer. Four
+faults, one fatal:
+- FATAL: `create()` takes an Activity, so this code runs in ART, not the game JVM. `URLClassLoader`
+  cannot load plain `.class` jars on Android → `ClassNotFound`. The "the launcher already lives in
+  the JVM" premise was wrong.
+- `install_profile.data` values are objects (`{"client":...,"server":...}`), not strings. Gson into
+  `Map<String,String>` throws, `getInstallProfile` swallows it and returns null, and the caller then
+  throws "install_profile.json missing" — sending you down the wrong trail.
+- `BINPATCH` client is `/data/client.lzma`, a path *inside* the installer jar, not a file on disk;
+  `binarypatcher --apply` against it gets nothing. It has to be extracted first.
+- `installProcessorLibraries` returns all 46 profile libs and appends them to every processor's
+  classpath (guava 20/25, asm 9.2/9.3, srgutils 0.4.3/9/11 stack up). Each processor should get
+  only its declared classpath.
+
+Decision: drop the in-process processor runner. Run the official installer jar itself in the
+bundled JRE subprocess (`java -jar forge-1.20.1-47.4.10-installer.jar --installClient <gameDir>`).
+That is the path Forge supports and tests, so the data shape, BINPATCH and per-processor classpath
+are all handled by the installer. The four findings stay recorded above as the reason, and as a
+checklist if a subprocess ever has to be replaced.
 
 ## Next steps (in order)
-1. Run the Forge installer headlessly to complete the install (blocker 1).
+1. Replace `runProcessors()` with a subprocess runner: locate the bundled JRE, run the installer
+   `--installClient <gameDir>`, capture exit code + log. (unverified)
 2. Add a loader-aware lookup in `mods.json` so 1.20.1 can carry both a Fabric and a Forge set.
 3. Build a Forge Android/OpenXR Vivecraft variant (blocker 2) — separate, larger job.
 4. Device test: create 1.20.1 + Forge, confirm boot, then confirm VR input.

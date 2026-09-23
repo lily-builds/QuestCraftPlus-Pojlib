@@ -26,14 +26,17 @@ import java.util.zip.ZipFile;
 /**
  * Lily, forge-support WIP, 2026-09-19 (processors added same day).
  *
- * Forge loader support for Pojlib: resolve the Forge build for a Minecraft version,
- * read the installer's bundled version.json into a VersionInfo, install the processor
- * libraries, and run the Forge install processors in-process (no subprocess: on Android
- * the launcher runs inside the JVM already, so we URLClassLoader the processor jars).
+ * Forge loader support for Pojlib: resolve the Forge build for a Minecraft version and
+ * read the installer's bundled version.json into a VersionInfo.
  *
  * The processors (installertools, ForgeAutoRenamingTool, SpecialSource, binarypatcher,
- * jtool) are what turn the vanilla client jar into the patched jar Forge needs. Without
- * them a Forge instance downloads everything but cannot launch.
+ * jtool) turn the vanilla client jar into the patched jar Forge needs. The in-process
+ * URLClassLoader runner below is SUPERSEDED and known-broken: create() runs in ART (it
+ * takes an Activity), and ART cannot load plain .class jars, so URLClassLoader throws
+ * ClassNotFound. Decision (after lilly-71's audit, 2026-09-21): run the official
+ * installer jar itself in the bundled JRE subprocess (`--installClient <gameDir>`),
+ * which handles the data shapes, BINPATCH and per-processor classpaths correctly.
+ * See FORGE-PORT.md.
  *
  * Still open: the launcher must pass Forge's bootstrap module-path JVM args (extractJvmArgs
  * does that) and there is no Forge + Android/OpenXR Vivecraft build for 1.20.1 yet.
